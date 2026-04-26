@@ -1,0 +1,42 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# IDE / local config
+.vscode/
+.codex
+.idea/
+
+# logs / outputs
+logs/
+outputs/
+plots/
+runs/
+wandb/
+
+# Hugging Face / cache
+hf_cache/
+.cache/
+
+# training outputs / checkpoints
+abtest_A_bs8_ga2/
+abtest_B_bs16_ga1/
+grpo_qwen25_15b_gsm8k_lora_from_uid1_2287_short/
+grpo_qwen25_15b_gsm8k_lora_grpo_baseline_448/
+grpo_qwen25_15b_gsm8k_lora_pvar_uid1_0_to_5188/
+grpo_qwen25_15b_gsm8k_lora_uid1_st_0_end_495_base_1st/
+memtest_1024_g8/
+
+# model/data large files
+*.pt
+*.pth
+*.ckpt
+*.bin
+*.safetensors
+*.gguf
+
+# environment
+.env
+.venv/
+venv/
+conda-meta/

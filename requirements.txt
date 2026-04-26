@@ -1,0 +1,14 @@
+torch>=2.2
+transformers>=4.52.0
+datasets>=3.0.0
+accelerate>=1.0.0
+trl>=0.25.0
+peft>=0.13.0
+bitsandbytes>=0.43.0
+numpy>=1.24
+tqdm>=4.66
+lm_eval[hf]>=0.4.0
+matplotlib>=3.8
+sentencepiece
+safetensors
+sentence-transformers
