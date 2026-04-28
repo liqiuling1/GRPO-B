@@ -18,7 +18,8 @@ USE_4BIT="${USE_4BIT:-1}"
 START_UID="${START_UID:-}"
 END_UID="${END_UID:-}"
 RESUME="${RESUME:-0}"
-STATE_OUT="${STATE_OUT:-}"
+TRUNCATION_OUT="${TRUNCATION_OUT:-}"
+UID_FILE="${UID_FILE:-}"
 
 mkdir -p outputs
 
@@ -43,7 +44,8 @@ echo "Use 4bit: ${USE_4BIT}"
 echo "Start uid: ${START_UID:-<none>}"
 echo "End uid: ${END_UID:-<none>}"
 echo "Resume: ${RESUME}"
-echo "State out: ${STATE_OUT:-<auto>}"
+echo "Truncation out: ${TRUNCATION_OUT:-<auto>}"
+echo "UID file: ${UID_FILE:-<none>}"
 echo "Scores out: ${OUT_FILE}"
 echo "Summary out: ${SUMMARY_FILE}"
 
@@ -82,8 +84,12 @@ if [ "${RESUME}" = "1" ]; then
   CMD+=(--resume)
 fi
 
-if [ -n "${STATE_OUT}" ]; then
-  CMD+=(--state_out "${STATE_OUT}")
+if [ -n "${TRUNCATION_OUT}" ]; then
+  CMD+=(--truncation_out "${TRUNCATION_OUT}")
+fi
+
+if [ -n "${UID_FILE}" ]; then
+  CMD+=(--uid_file "${UID_FILE}")
 fi
 
 "${CMD[@]}"

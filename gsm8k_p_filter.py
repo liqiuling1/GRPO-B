@@ -3,7 +3,6 @@ import glob
 import json
 import os
 import random
-import re
 from typing import Dict, List, Set
 
 import numpy as np
@@ -20,9 +19,7 @@ from dataset_utils import (
     load_gsm8k,
 )
 from model_utils import load_model_for_inference, resolve_cached_model_path, truncate_on_stop_strings
-from reward_utils import extract_final_answer, extract_last_number, score_prediction_against_answer
-
-FINAL_ANSWER_RE = re.compile(r"The answer is (\-?[0-9\.\,]+)\.", flags=re.IGNORECASE)
+from reward_utils import score_prediction_against_answer
 
 
 def log(message: str) -> None:
@@ -68,12 +65,12 @@ def compute_p(answers: List[str], gold_answer: str) -> float:
     return sum(score_prediction_against_answer(answer, gold_answer) for answer in answers) / len(answers)
 
 
-def derive_state_out_path(out_path: str, state_out: str) -> str:
-    if state_out:
-        return state_out
+def derive_truncation_out_path(out_path: str, truncation_out: str) -> str:
+    if truncation_out:
+        return truncation_out
     if out_path.endswith(".jsonl"):
-        return out_path[:-6] + ".state.jsonl"
-    return out_path + ".state.jsonl"
+        return out_path[:-6] + ".truncated.jsonl"
+    return out_path + ".truncated.jsonl"
 
 
 def load_jsonl_rows(path: str) -> List[Dict]:
@@ -96,13 +93,21 @@ def load_jsonl_rows(path: str) -> List[Dict]:
     return rows
 
 
+def load_uid_filter(path: str) -> Set[str]:
+    rows = load_jsonl_rows(path)
+    uids: Set[str] = set()
+    for row in rows:
+        uid = row.get("uid")
+        if uid is not None:
+            uids.add(str(uid))
+    return uids
+
+
 def restore_resume_state(existing_rows: List[Dict]) -> Dict:
     completed_uids: Set[str] = set()
     mean_p = 0.0
     total_generations = 0
     total_likely_truncated = 0
-    total_missing_final_format = 0
-    total_missing_numeric_final = 0
     samples_with_any_truncation = 0
     samples_with_all_truncation = 0
     num_scored_rows = 0
@@ -117,20 +122,16 @@ def restore_resume_state(existing_rows: List[Dict]) -> Dict:
             mean_p += row["p"]
             num_scored_rows += 1
 
-        has_diagnostics = all(
+        has_truncation_diagnostics = all(
             key in row
             for key in [
                 "_sample_likely_truncated",
-                "_sample_missing_final_format",
-                "_sample_missing_numeric_final",
                 "_num_answers",
             ]
         )
-        if has_diagnostics:
+        if has_truncation_diagnostics:
             total_generations += row["_num_answers"]
             total_likely_truncated += row["_sample_likely_truncated"]
-            total_missing_final_format += row["_sample_missing_final_format"]
-            total_missing_numeric_final += row["_sample_missing_numeric_final"]
             if row["_sample_likely_truncated"] > 0:
                 samples_with_any_truncation += 1
             if row["_sample_likely_truncated"] == row["_num_answers"]:
@@ -143,8 +144,6 @@ def restore_resume_state(existing_rows: List[Dict]) -> Dict:
         "mean_p": mean_p,
         "total_generations": total_generations,
         "total_likely_truncated": total_likely_truncated,
-        "total_missing_final_format": total_missing_final_format,
-        "total_missing_numeric_final": total_missing_numeric_final,
         "samples_with_any_truncation": samples_with_any_truncation,
         "samples_with_all_truncation": samples_with_all_truncation,
         "num_scored_rows": num_scored_rows,
@@ -213,16 +212,13 @@ def sample_answers_batch_safe_text(
                     and tokenizer.eos_token_id is not None
                     and completion_ids[-1].item() == tokenizer.eos_token_id
                 )
-                answers_batch[prompt_idx].append(
-                    {
-                        "text": text,
-                        "generated_tokens": generated_token_count,
-                        "ended_with_eos": ended_with_eos,
-                        "likely_length_truncated": bool(generated_token_count >= max_new_tokens and not ended_with_eos),
-                        "has_final_answer_format": bool(FINAL_ANSWER_RE.search(text)),
-                        "has_numeric_final_answer": extract_last_number(extract_final_answer(text)) is not None,
-                    }
-                )
+                answer_info = {
+                    "text": text,
+                    "generated_tokens": generated_token_count,
+                    "ended_with_eos": ended_with_eos,
+                    "likely_length_truncated": bool(generated_token_count >= max_new_tokens and not ended_with_eos),
+                }
+                answers_batch[prompt_idx].append(answer_info)
 
         del output_ids
 
@@ -264,9 +260,6 @@ def build_scored_row(
     answers = [item["text"] for item in answer_infos]
     p = compute_p(answers, gold_answer)
     sample_likely_truncated = sum(1 for item in answer_infos if item["likely_length_truncated"])
-    sample_missing_final_format = sum(1 for item in answer_infos if not item["has_final_answer_format"])
-    sample_missing_numeric_final = sum(1 for item in answer_infos if not item["has_numeric_final_answer"])
-
     return {
         "uid": str(idx),
         "split": split,
@@ -274,10 +267,17 @@ def build_scored_row(
         "answer_gold": gold_answer,
         "p": p,
         "_sample_likely_truncated": sample_likely_truncated,
-        "_sample_missing_final_format": sample_missing_final_format,
-        "_sample_missing_numeric_final": sample_missing_numeric_final,
         "_num_answers": len(answer_infos),
     }
+
+
+def build_truncation_row(
+    row: Dict,
+    answer_infos: List[Dict],
+) -> Dict | None:
+    if row["_sample_likely_truncated"] <= 0:
+        return None
+    return {"uid": row["uid"]}
 
 
 def select_examples(dataset, max_samples: int, seed: int, shuffle: bool):
@@ -329,7 +329,18 @@ def parse_args():
     parser.add_argument("--min_uid", "--start_uid", dest="min_uid", type=int, default=None)
     parser.add_argument("--max_uid", "--end_uid", dest="max_uid", type=int, default=None)
     parser.add_argument("--resume", action="store_true")
-    parser.add_argument("--state_out", type=str, default="")
+    parser.add_argument(
+        "--truncation_out",
+        type=str,
+        default="",
+        help="JSONL path for samples with at least one likely length-truncated generation.",
+    )
+    parser.add_argument(
+        "--uid_file",
+        type=str,
+        default="",
+        help="Optional JSONL file containing uid fields; only these dataset rows are scored.",
+    )
     return parser.parse_args()
 
 
@@ -353,6 +364,7 @@ def main():
     log(f"  prompt_style={args.prompt_style}")
     log(f"  min_uid={args.min_uid}")
     log(f"  max_uid={args.max_uid}")
+    log(f"  uid_file={args.uid_file or '<none>'}")
     log(f"  resume={args.resume}")
     log(f"Loading base model: {args.base_model}")
     if base_model_path != args.base_model:
@@ -381,40 +393,44 @@ def main():
         max_uid=args.max_uid,
     )
     target_uid_set = {str(uid) for uid in target_uid_range}
+    if args.uid_file:
+        uid_filter = load_uid_filter(args.uid_file)
+        target_uid_set &= uid_filter
+        log(f"Loaded {len(uid_filter)} uid values from: {args.uid_file}")
     log(
-        f"Scoring {len(target_uid_range)} samples"
+        f"Scoring {len(target_uid_set)} samples"
         f" (uid range: {target_uid_range.start}..{target_uid_range.stop - 1})"
         if len(target_uid_range) > 0
         else "Scoring 0 samples (uid range is empty)"
     )
 
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
-    state_out = derive_state_out_path(args.out, args.state_out)
-    os.makedirs(os.path.dirname(state_out) or ".", exist_ok=True)
+    truncation_out = derive_truncation_out_path(args.out, args.truncation_out)
+    os.makedirs(os.path.dirname(truncation_out) or ".", exist_ok=True)
 
     rows: List[Dict] = []
     mean_p = 0.0
     total_generations = 0
     total_likely_truncated = 0
-    total_missing_final_format = 0
-    total_missing_numeric_final = 0
     samples_with_any_truncation = 0
     samples_with_all_truncation = 0
     num_scored_rows = 0
     completed_uids: Set[str] = set()
     diagnostics_complete = True
-    seed_state_rows: List[Dict] = []
 
     if args.resume:
-        existing_rows = load_jsonl_rows(state_out)
-        existing_source = state_out
-        if not existing_rows:
-            existing_rows = load_jsonl_rows(args.out)
-            existing_source = args.out
+        existing_rows = load_jsonl_rows(args.out)
+        existing_source = args.out
+        existing_truncation_rows = load_jsonl_rows(truncation_out)
 
         existing_rows = [
             row for row in existing_rows if str(row.get("uid")) in target_uid_set
         ]
+        existing_truncation_uids = {
+            str(row.get("uid"))
+            for row in existing_truncation_rows
+            if row.get("uid") is not None and str(row.get("uid")) in target_uid_set
+        }
 
         if existing_rows:
             resume_state = restore_resume_state(existing_rows)
@@ -423,8 +439,6 @@ def main():
             mean_p = resume_state["mean_p"]
             total_generations = resume_state["total_generations"]
             total_likely_truncated = resume_state["total_likely_truncated"]
-            total_missing_final_format = resume_state["total_missing_final_format"]
-            total_missing_numeric_final = resume_state["total_missing_numeric_final"]
             samples_with_any_truncation = resume_state["samples_with_any_truncation"]
             samples_with_all_truncation = resume_state["samples_with_all_truncation"]
             num_scored_rows = resume_state["num_scored_rows"]
@@ -433,19 +447,20 @@ def main():
                 f"Resume enabled: loaded {len(existing_rows)} completed rows "
                 f"from {existing_source}"
             )
-            if existing_source == args.out and not os.path.exists(state_out):
-                seed_state_rows = existing_rows
         else:
             log("Resume enabled: no existing rows found, starting a fresh run")
+        if existing_truncation_uids:
+            completed_uids |= existing_truncation_uids
+            log(
+                f"Resume enabled: loaded {len(existing_truncation_uids)} truncated uid rows "
+                f"from {truncation_out}"
+            )
 
     out_mode = "a" if args.resume and os.path.exists(args.out) else "w"
-    state_mode = "a" if args.resume and os.path.exists(state_out) else "w"
+    truncation_mode = "a" if args.resume and os.path.exists(truncation_out) else "w"
 
-    with open(args.out, out_mode, encoding="utf-8") as handle, open(state_out, state_mode, encoding="utf-8") as state_handle:
-        if seed_state_rows:
-            for row in seed_state_rows:
-                state_handle.write(json.dumps(row, ensure_ascii=False) + "\n")
-        progress = tqdm(total=len(target_uid_range), desc="Scoring GSM8K", dynamic_ncols=True)
+    with open(args.out, out_mode, encoding="utf-8") as handle, open(truncation_out, truncation_mode, encoding="utf-8") as truncation_handle:
+        progress = tqdm(total=len(target_uid_set), desc="Scoring GSM8K", dynamic_ncols=True)
         if completed_uids:
             progress.update(len(completed_uids & target_uid_set))
         for batch_start in range(0, len(dataset), max(1, args.prompt_batch_size)):
@@ -520,7 +535,6 @@ def main():
                     }
                     rows.append(row)
                     handle.write(json.dumps(row, ensure_ascii=False) + "\n")
-                    state_handle.write(json.dumps(row, ensure_ascii=False) + "\n")
                     completed_uids.add(str(idx - 1))
                     progress.update(1)
                     continue
@@ -536,8 +550,6 @@ def main():
                 num_scored_rows += 1
                 total_generations += row["_num_answers"]
                 total_likely_truncated += row["_sample_likely_truncated"]
-                total_missing_final_format += row["_sample_missing_final_format"]
-                total_missing_numeric_final += row["_sample_missing_numeric_final"]
                 if row["_sample_likely_truncated"] > 0:
                     samples_with_any_truncation += 1
                 if row["_sample_likely_truncated"] == row["_num_answers"]:
@@ -545,10 +557,15 @@ def main():
 
                 mean_p += row["p"]
 
-                public_row = {k: v for k, v in row.items() if not k.startswith("_")}
-                rows.append(public_row)
-                handle.write(json.dumps(public_row, ensure_ascii=False) + "\n")
-                state_handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+                truncation_row = build_truncation_row(
+                    row=row,
+                    answer_infos=answer_infos,
+                )
+                if truncation_row is not None:
+                    truncation_handle.write(json.dumps(truncation_row, ensure_ascii=False) + "\n")
+                else:
+                    rows.append(row)
+                    handle.write(json.dumps(row, ensure_ascii=False) + "\n")
                 completed_uids.add(str(idx - 1))
 
                 progress.update(1)
@@ -566,6 +583,7 @@ def main():
         progress.close()
 
     log(f"Saved scored rows to: {args.out}")
+    log(f"Saved truncation rows to: {truncation_out}")
 
     summary = {
         "split": args.split,
@@ -578,7 +596,8 @@ def main():
         "prompt_style": args.prompt_style,
         "mean_p": mean_p / max(num_scored_rows, 1),
         "resume": args.resume,
-        "state_out": state_out,
+        "truncation_out": truncation_out,
+        "uid_file": args.uid_file or None,
         "diagnostics_complete": diagnostics_complete,
     }
     if diagnostics_complete:
@@ -587,12 +606,10 @@ def main():
                 "total_generations": total_generations,
                 "likely_truncated_generations": total_likely_truncated,
                 "likely_truncation_rate": total_likely_truncated / max(total_generations, 1),
-                "missing_final_answer_format_rate": total_missing_final_format / max(total_generations, 1),
-                "missing_numeric_final_answer_rate": total_missing_numeric_final / max(total_generations, 1),
                 "samples_with_any_truncation": samples_with_any_truncation,
                 "samples_with_all_truncation": samples_with_all_truncation,
-                "sample_any_truncation_rate": samples_with_any_truncation / max(len(rows), 1),
-                "sample_all_truncation_rate": samples_with_all_truncation / max(len(rows), 1),
+                "sample_any_truncation_rate": samples_with_any_truncation / max(num_scored_rows, 1),
+                "sample_all_truncation_rate": samples_with_all_truncation / max(num_scored_rows, 1),
             }
         )
     else:
@@ -601,8 +618,6 @@ def main():
                 "total_generations": None,
                 "likely_truncated_generations": None,
                 "likely_truncation_rate": None,
-                "missing_final_answer_format_rate": None,
-                "missing_numeric_final_answer_rate": None,
                 "samples_with_any_truncation": None,
                 "samples_with_all_truncation": None,
                 "sample_any_truncation_rate": None,

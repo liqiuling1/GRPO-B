@@ -77,6 +77,18 @@ def build_bnb_config(use_4bit: bool = True) -> Optional[BitsAndBytesConfig]:
     )
 
 
+def get_training_device_map(use_4bit: bool):
+    if not use_4bit:
+        return None
+
+    local_rank = os.environ.get("LOCAL_RANK")
+    world_size = int(os.environ.get("WORLD_SIZE", "1"))
+    if local_rank is not None and world_size > 1:
+        return {"": int(local_rank)}
+
+    return "auto"
+
+
 def load_tokenizer(model_name_or_path: str):
     resolved_path = resolve_cached_model_path(model_name_or_path)
     local_only = os.path.isdir(resolved_path)
@@ -105,7 +117,7 @@ def load_model_for_training(
     model = AutoModelForCausalLM.from_pretrained(
         resolved_model_name,
         trust_remote_code=True,
-        device_map="auto",
+        device_map=get_training_device_map(use_4bit=use_4bit),
         torch_dtype=compute_dtype,
         quantization_config=quantization_config,
         local_files_only=local_only,

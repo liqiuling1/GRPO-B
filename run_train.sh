@@ -1,11 +1,29 @@
 #!/bin/bash
 set -euo pipefail
 
-export CUDA_VISIBLE_DEVICES=0
+export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
 export HF_HOME="${HF_HOME:-$HOME/.cache/huggingface}"
 export HF_HUB_OFFLINE="${HF_HUB_OFFLINE:-0}"
 export TRANSFORMERS_OFFLINE="${TRANSFORMERS_OFFLINE:-0}"
 export HF_DATASETS_OFFLINE="${HF_DATASETS_OFFLINE:-0}"
+NUM_GPUS="${NUM_GPUS:-}"
+if [ -n "${NUM_GPUS}" ] && [ -z "${NUM_PROCESSES:-}" ]; then
+  NUM_PROCESSES="${NUM_GPUS}"
+fi
+NUM_PROCESSES="${NUM_PROCESSES:-1}"
+
+if [ -n "${CUDA_VISIBLE_DEVICES}" ]; then
+  IFS=',' read -ra VISIBLE_GPU_IDS <<< "${CUDA_VISIBLE_DEVICES}"
+  NUM_VISIBLE_GPUS="${#VISIBLE_GPU_IDS[@]}"
+else
+  NUM_VISIBLE_GPUS=0
+fi
+
+if [ "${NUM_VISIBLE_GPUS}" -gt 0 ] && [ "${NUM_PROCESSES}" -gt "${NUM_VISIBLE_GPUS}" ]; then
+  echo "Error: NUM_PROCESSES=${NUM_PROCESSES} but CUDA_VISIBLE_DEVICES exposes only ${NUM_VISIBLE_GPUS} GPU(s): ${CUDA_VISIBLE_DEVICES}" >&2
+  echo "Set CUDA_VISIBLE_DEVICES and NUM_PROCESSES consistently, e.g. single GPU: CUDA_VISIBLE_DEVICES=1 NUM_PROCESSES=1" >&2
+  exit 1
+fi
 
 mkdir -p logs
 TIME=$(date +"%Y%m%d_%H%M%S")
@@ -376,6 +394,9 @@ print_training_summary() {
   echo "Log: ${LOG_FILE}"
   echo "Training mode: ${TRAINING_MODE}"
   echo "HF_HOME: ${HF_HOME}"
+  echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES}"
+  echo "Visible GPU count: ${NUM_VISIBLE_GPUS}"
+  echo "Accelerate num processes: ${NUM_PROCESSES}"
   echo "Mode: ${RUN_MODE}"
   echo "Train split: train"
   echo "Base model (${BASE_MODEL_SOURCE}): ${BASE_MODEL}"
@@ -445,7 +466,7 @@ ln -sfn "$(basename "${LOG_FILE}")" "${LATEST_LOG_LINK}"
 CMD=(
   accelerate launch
   --mixed_precision bf16
-  --num_processes 1
+  --num_processes "${NUM_PROCESSES}"
   train_grpo.py
   --model_name "${BASE_MODEL}"
   --output_dir "${OUTPUT_DIR}"

@@ -89,20 +89,6 @@ bash run_lm_eval_gsm8k.sh \
   --task gsm8k_cot \
   --no_adapter
 
-数据筛选运行命令
-
-conda run -n grpo_b python gsm8k_deff_filter.py \
-  --base_model Qwen/Qwen2.5-1.5B-Instruct \
-  --split train \
-  --max_samples 100 \
-  --K 8 \
-  --max_new_tokens 448 \
-  --tau 0.2 \
-  --out outputs/gsm8k_deff_scores.jsonl \
-  --filtered_out outputs/gsm8k_deff_top.jsonl \
-  --keep_top_n 20 \
-  --embedder_device cpu \
-  --use_4bit
 
 跑评估的命令行
   bash run_lm_eval_gsm8k.sh ./grpo_qwen25_15b_gsm8k_lora_pvar_uid1_0_to_5188/checkpoint-300
@@ -110,6 +96,35 @@ conda run -n grpo_b python gsm8k_deff_filter.py \
   bash run_lm_eval_gsm8k.sh --max_gen_toks 512 ./grpo_qwen25_15b_gsm8k_lora_grpo_baseline/checkpoint-1000
 
 跑模型的命令
+
+MAX_COMPLETION_LENGTH=256 \
+bash run_train.sh \
+  --mode foreground \
+  --base_model Qwen/Qwen2.5-1.5B-Instruct \
+  --dataset_path /path/to/gsm8k-train.arrow \
+  --scores_file outputs/gsm8k_p_scores_manual_shell_1.jsonl \ 
+  排序/筛选后的样本文件。训练会按这个 jsonl 里的 uid 顺序取 GSM8K 原始题目，并可用 uid1 范围筛选。
+  --start_uid1 0 \ 起始 uid1
+  --end_uid1 5188 \ 终止 uid1
+  --output_dir ./my_grpo_run \  输出文件目录
+  --max_steps 1000 \ 训练最大步数
+  --batch_size 8 \
+  --grad_acc 1 \
+  --num_generations 4 \
+  --init_adapter_path /path/to/lora_adapter \
+  --prompt_style short \
+  /path/to/checkpoint-500
+
+# 测试
+MAX_COMPLETION_LENGTH=1024 bash run_train.sh \
+  --mode foreground \
+  --output_dir ./memtest_1024_g16 \
+  --max_steps 5 \
+  --batch_size 16 \
+  --grad_acc 1 \
+  --num_generations 16 \
+  --prompt_style short
+
 从某一个点开始
 bash run_train.sh \
   --base_model Qwen/Qwen2.5-1.5B-Instruct \
@@ -150,36 +165,19 @@ bash run_train.sh \
   cd /home/nhlling/rl_project
   ls -lh grpo_qwen25_15b_gsm8k_lora_grpo_baseline.tar
 
+  # 样例
+  tar -cf /tmp/hf_cache.tar hf_cache
+  cd /home/nhlling/rl_project
+
 # 创建目标目录并解压
  mkdir -p /home/nhlling/GRPO-B
  tar -xvf grpo_qwen25_15b_gsm8k_lora_grpo_baseline.tar -C /home/nhlling/GRPO-B/
 
- # 数据评分命令
-CONDA_ENV_NAME=grpo_b \
-CUDA_VISIBLE_DEVICES=0 \
-HF_HOME=$HOME/.cache/huggingface \
-BASE_MODEL=Qwen/Qwen2.5-1.5B-Instruct \
-ADAPTER_PATH=./grpo_qwen25_15b_gsm8k_lora_grpo_baseline/checkpoint-1000 \ 不写 默认不用
-SPLIT=train \
-MAX_SAMPLES=100 \
-K=32 \
-MAX_NEW_TOKENS=448 \
-GENERATION_BATCH_SIZE=16 \
-PROMPT_BATCH_SIZE=2 \
-PROMPT_STYLE=short \
-USE_4BIT=1 \
-OUT_FILE=outputs/gsm8k_p_scores_manual_shell.jsonl \
-SUMMARY_FILE=outputs/gsm8k_p_summary_manual_shell.json \
-bash run_gsm8k_p_filter.sh
+ # 样例
+tar -xvf hf_cache.tar -C /mnt/c/Users/NHLling/Desktop/GRPO-B
 
-START_UID=100 \
-END_UID=199 \
-MAX_SAMPLES=4 \
-K=32 \
-GENERATION_BATCH_SIZE=32 \
-OUT_FILE=outputs/gsm8k_p_scores_manual_shell_test.jsonl \
-SUMMARY_FILE=outputs/gsm8k_p_summary_manual_shell_test.json \
-bash run_gsm8k_p_filter.sh
+
+ 
 
 # 数据抽样 命令行代码
 INPUT=outputs/gsm8k_deff_scores_k8_t448_tau0.2_20260412_212149.jsonl \ 
@@ -209,3 +207,7 @@ SAMPLE_PERCENT=10 \
 bash run_sample_by_p_distribution.sh \
 outputs/gsm8k_deff_scores_k8_t448_tau0.2_20260412_212149.jsonl
 
+# 将代码上传到github
+git add .
+git commit -m "update"
+git push
