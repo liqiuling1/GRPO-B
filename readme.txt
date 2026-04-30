@@ -93,28 +93,33 @@ bash run_lm_eval_gsm8k.sh \
 跑评估的命令行
   bash run_lm_eval_gsm8k.sh ./grpo_qwen25_15b_gsm8k_lora_pvar_uid1_0_to_5188/checkpoint-300
   bash run_lm_eval_gsm8k.sh --max_gen_toks 512 ./grpo_qwen25_15b_gsm8k_lora_pvar_uid1_0_to_5188/checkpoint-300
-  bash run_lm_eval_gsm8k.sh --max_gen_toks 512 ./grpo_qwen25_15b_gsm8k_lora_grpo_baseline/checkpoint-1000
+  bash run_lm_eval_gsm8k.sh --max_gen_toks 512 ./grpo_qwen25_15b_gsm8k_lora_grpo_baseline_256/checkpoint-1000
 
 跑模型的命令
 
 MAX_COMPLETION_LENGTH=256 \
 bash run_train.sh \
   --mode foreground \
-  --base_model Qwen/Qwen2.5-1.5B-Instruct \
-  --dataset_path /path/to/gsm8k-train.arrow \
+  --base_model Qwen/Qwen2.5-1.5B-Instruct \ 模型路径
+  --dataset_path /path/to/gsm8k-train.arrow \ 数据集路径
   --scores_file outputs/gsm8k_p_scores_manual_shell_1.jsonl \ 
   排序/筛选后的样本文件。训练会按这个 jsonl 里的 uid 顺序取 GSM8K 原始题目，并可用 uid1 范围筛选。
   --start_uid1 0 \ 起始 uid1
   --end_uid1 5188 \ 终止 uid1
   --output_dir ./my_grpo_run \  输出文件目录
   --max_steps 1000 \ 训练最大步数
-  --batch_size 8 \
-  --grad_acc 1 \
-  --num_generations 4 \
+  --batch_size 8 \ 每张 GPU 的 batch size。这里的 8 通常对应每步 8 个 completion，不是 8 道题。
+  --grad_acc 2 \梯度累积步数。显存不够时可以降低 batch、提高 grad_acc
+  --num_generations 16 \ 每个题生成几个候选答案
   --init_adapter_path /path/to/lora_adapter \
-  --prompt_style short \
-  /path/to/checkpoint-500
+  用已有 LoRA adapter 初始化继续训练，但不是 checkpoint 续训。比如你有一个训练好的 adapter，想在它基础上开新实验。
+  --prompt_style short \prompt 模板。当前支持 short 和 fewshot。short 更省 token、更快。
+  /path/to/checkpoint-500 这是从 checkpoint 续训用的
 
+batch_size 8  grad_acc 2  num_generations 16  32G卡 
+batch_size 4  grad_acc 4  num_generations 16  24G卡
+
+说明 
 # 测试
 MAX_COMPLETION_LENGTH=1024 bash run_train.sh \
   --mode foreground \
@@ -143,6 +148,8 @@ bash run_train.sh \
   --start_uid1 2287 \
   --output_dir ./grpo_qwen25_15b_gsm8k_lora_from_uid1_2287
 
+/home/ling/.cache/huggingface/hub/models--Qwen--Qwen2.5-1.5B-Instruct
+
 MAX_COMPLETION_LENGTH=1024 \
 bash run_train.sh \
   --base_model Qwen/Qwen2.5-1.5B-Instruct \
@@ -169,9 +176,11 @@ bash run_train.sh \
   tar -cf /tmp/hf_cache.tar hf_cache
   cd /home/nhlling/rl_project
 
+tar -cf /tmp/grpo_qwen25_15b_gsm8k_lora_pvar_uid1_0_to_5188.tar grpo_qwen25_15b_gsm8k_lora_pvar_uid1_0_to_5188
+
 # 创建目标目录并解压
  mkdir -p /home/nhlling/GRPO-B
- tar -xvf grpo_qwen25_15b_gsm8k_lora_grpo_baseline.tar -C /home/nhlling/GRPO-B/
+ tar -xvf grpo_qwen25_15b_gsm8k_lora_grpo_baseline.tar -C /home/nhlling/GRPO-B
 
  # 样例
 tar -xvf hf_cache.tar -C /mnt/c/Users/NHLling/Desktop/GRPO-B
@@ -211,3 +220,17 @@ outputs/gsm8k_deff_scores_k8_t448_tau0.2_20260412_212149.jsonl
 git add .
 git commit -m "update"
 git push
+
+tmux new -s train
+tmux ls
+tmux attach -t train
+
+cd /home/ling/.cache/huggingface
+
+打包模型和数据集
+tar -czvf /tmp/qwen25_15b_gsm8k_hf_cache.tar.gz \
+  hub/models--Qwen--Qwen2.5-1.5B-Instruct \
+  datasets/openai___gsm8k \
+  datasets/gsm8k \
+  hub/datasets--gsm8k \
+  hub/datasets--openai--gsm8k

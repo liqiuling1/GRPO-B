@@ -1,0 +1,85 @@
+在本机 WSL 里执行：
+
+cd /home/ling/.cache/huggingface
+
+tar -czvf /tmp/qwen25_15b_gsm8k_hf_cache.tar.gz \
+  hub/models--Qwen--Qwen2.5-1.5B-Instruct \
+  datasets/openai___gsm8k \
+  datasets/gsm8k \
+  hub/datasets--gsm8k \
+  hub/datasets--openai--gsm8k
+
+这个包里会包含：
+
+基础模型：
+hub/models--Qwen--Qwen2.5-1.5B-Instruct
+
+GSM8K 数据集缓存：
+datasets/openai___gsm8k
+datasets/gsm8k
+
+GSM8K hub 原始缓存：
+hub/datasets--gsm8k
+hub/datasets--openai--gsm8k
+
+打包后检查大小：
+
+ls -lh /tmp/qwen25_15b_gsm8k_hf_cache.tar.gz
+然后传到服务器，假设服务器用户名是 user，地址是 server_ip：
+
+scp /tmp/qwen25_15b_gsm8k_hf_cache.tar.gz user@server_ip:~/
+到服务器上解压：
+
+mkdir -p ~/.cache/huggingface
+tar -xzvf ~/qwen25_15b_gsm8k_hf_cache.tar.gz -C ~/.cache/huggingface
+然后服务器上确认：
+
+ls ~/.cache/huggingface/hub/models--Qwen--Qwen2.5-1.5B-Instruct
+ls ~/.cache/huggingface/datasets/openai___gsm8k
+训练时确保用这个缓存：
+
+export HF_HOME=$HOME/.cache/huggingface
+如果服务器不能联网，还可以加：
+
+export HF_HUB_OFFLINE=1
+export TRANSFORMERS_OFFLINE=1
+export HF_DATASETS_OFFLINE=1
+之后你的训练命令里继续用：
+
+--model_name Qwen/Qwen2.5-1.5B-Instruct
+数据集如果脚本自动找缓存，就不用额外写；如果要手动指定，可以用：
+
+--dataset_path /home/你的服务器用户名/.cache/huggingface/datasets/openai_
+
+你本机 WSL 里这样传：
+
+1 scp /tmp/qwen25_15b_gsm8k_hf_cache.tar.gz changqingcheng@172.23.19.2:/home/changqingcheng/baseline2.0/
+传完后，在服务器上检查：
+
+2 scp /tmp/qwen25_15b_gsm8k_hf_cache.tar.gz root@sc01-ssh.gpuhome.cc:/home/changqingcheng/baseline2.0/
+
+ls -lh /home/changqingcheng/baseline2.0/qwen25_15b_gsm8k_hf_cache.tar.gz
+然后服务器上解压到 Hugging Face 默认缓存目录：
+
+ls -lh /workspace/qwen25_15b_gsm8k_hf_cache.tar.gz
+
+mkdir -p /home/changqingcheng/.cache/huggingface
+
+2 mkdir -p /root/rivermind-data/workspace/.cache/huggingface
+
+tar -xzvf /home/changqingcheng/baseline2.0/qwen25_15b_gsm8k_hf_cache.tar.gz \
+  -C /home/changqingcheng/.cache/huggingface
+
+tar -xzvf /workspace/qwen25_15b_gsm8k_hf_cache.tar.gz \
+  -C /root/rivermind-data/workspace/.cache/huggingface
+
+训练前设置：
+
+export HF_HOME=/home/changqingcheng/.cache/huggingface
+如果服务器不能联网，再加：
+
+export HF_HUB_OFFLINE=1
+export TRANSFORMERS_OFFLINE=1
+export HF_DATASETS_OFFLINE=1
+
+jzx1saww
