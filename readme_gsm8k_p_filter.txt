@@ -104,3 +104,22 @@ outputs/gsm8k_p_scores_final_no_truncation.jsonl
 全量 7473 条
 每条都有 p
 最终纳入的评分结果都来自“没有截断”的那一轮
+
+收尾工作 最后一轮专用，即使有截断也把带 p 的评分行写进 OUT_FILE
+CONDA_ENV_NAME=grpo_b \
+CUDA_VISIBLE_DEVICES=0 \
+HF_HOME=$HOME/.cache/huggingface \
+BASE_MODEL=Qwen/Qwen2.5-1.5B-Instruct \
+ADAPTER_PATH= \
+SPLIT=train \
+MAX_SAMPLES=0 \
+K=32 \
+MAX_NEW_TOKENS=2048 \
+GENERATION_BATCH_SIZE=8 \
+PROMPT_BATCH_SIZE=1 \
+PROMPT_STYLE=short \
+USE_4BIT=1 \
+UID_FILE=outputs/gsm8k_p_scores_2048_truncated_need_3072_uids.jsonl \
+OUT_FILE=outputs/gsm8k_p_scores_2048_final_keep_truncated.jsonl \
+SUMMARY_FILE=outputs/gsm8k_p_summary_2048_final_keep_truncated.json \
+bash run_gsm8k_p_filter_final_keep_truncated.sh

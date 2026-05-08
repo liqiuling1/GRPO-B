@@ -93,7 +93,7 @@ bash run_lm_eval_gsm8k.sh \
 跑评估的命令行
   bash run_lm_eval_gsm8k.sh ./grpo_qwen25_15b_gsm8k_lora_pvar_uid1_0_to_5188/checkpoint-300
   bash run_lm_eval_gsm8k.sh --max_gen_toks 512 ./grpo_qwen25_15b_gsm8k_lora_pvar_uid1_0_to_5188/checkpoint-300
-  bash run_lm_eval_gsm8k.sh --max_gen_toks 512 ./grpo_qwen25_15b_gsm8k_lora_grpo_baseline_256/checkpoint-1000
+  bash run_lm_eval_gsm8k.sh --max_gen_toks 512 ./grpo_qwen25_15b_gsm8k_lora_grpo_baseline_256/checkpoint-2500
 
 跑模型的命令
 
@@ -196,15 +196,13 @@ bash run_sample_by_p_distribution.sh \
   outputs/gsm8k_deff_scores_k8_t448_tau0.2_20260412_212149.jsonl
 
 # 样例
-SAMPLED_OUTPUT=outputs/my_sampled.jsonl \
-REMAINING_OUTPUT=outputs/my_remaining.jsonl \
-SAMPLED_SUMMARY=outputs/my_sampled_summary.json \
-REMAINING_SUMMARY=outputs/my_remaining_summary.json \
-INPUT=outputs/gsm8k_deff_scores_k8_t448_tau0.2_20260412_212149.jsonl \
-P_BIN_EDGES="0,0.25,0.5,0.75,1" \
+SAMPLED_OUTPUT=outputs/gsm8k_p_scores_final_10%.jsonl \
+REMAINING_OUTPUT=outputs/90%_remaining.jsonl \
+SAMPLED_SUMMARY=outputs/10%_sampled_summary.json \
+REMAINING_SUMMARY=outputs/90%_remaining_summary.json \
+INPUT=outputs/gsm8k_p_scores_final.jsonl \
 SAMPLE_PERCENT=10 \
-bash run_sample_by_p_distribution.sh \
-outputs/gsm8k_deff_scores_k8_t448_tau0.2_20260412_212149.jsonl
+bash run_sample_by_p_distribution.sh
 
 # 直接用
 SAMPLED_OUTPUT=outputs/my_sampled_test1.jsonl \
@@ -234,3 +232,11 @@ tar -czvf /tmp/qwen25_15b_gsm8k_hf_cache.tar.gz \
   datasets/gsm8k \
   hub/datasets--gsm8k \
   hub/datasets--openai--gsm8k
+
+# 从服务器下载模型参数
+scp -r changqingcheng@172.23.19.2:~/baseline2.0/grpo_qwen25_15b_gsm8k_lora_grpo_baseline_1024_1gpu/checkpoint-700 ~/GRPO-B/
+
+for i in 200 500 1000 1500 2000 2500 3000 3500 
+do
+  rsync -avP changqingcheng@172.23.19.2:~/baseline2.0/grpo_qwen25_15b_gsm8k_lora_grpo_baseline_1024_1gpu/checkpoint-$i ~/GRPO-B/outputs/
+done

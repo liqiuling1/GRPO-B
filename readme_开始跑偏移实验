@@ -1,0 +1,8 @@
+MAX_COMPLETION_LENGTH=1024 \
+bash run_train.sh \
+  --base_model Qwen/Qwen2.5-1.5B-Instruct \
+  --dataset_path /home/ling/.cache/huggingface/datasets/openai___gsm8k/main/0.0.0/740312add88f781978c0658806c59bc2815b9866/gsm8k-train.arrow \
+  --scores_file outputs/90%_remaining_pvar_sorted.jsonl \
+  --start_uid1 0 \
+  --end_uid1 131 \
+  --output_dir ./pvar_sorted_1024_uid1_0-uid1_131_p_0.5
