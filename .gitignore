@@ -40,3 +40,15 @@ memtest_1024_g8/
 .venv/
 venv/
 conda-meta/
+
+# training outputs
+grpo_qwen25_15b_gsm8k_lora_grpo_baseline_1024_1gpu/
+outputs/
+checkpoint-*/
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.ckpt
+wandb/
+runs/
