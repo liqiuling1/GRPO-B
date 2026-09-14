@@ -1,0 +1,58 @@
+conda run -n grpo_b python plot_p_distribution_compare_bins.py \
+  --inputs \
+    "outputs/merge_final/gsm8k_p_scores_final_no_truncation_2_checkpoint-30.jsonl" \
+    "outputs/merge_final/gsm8k_p_scores_final_no_truncation_2_checkpoint-50.jsonl" \
+  --labels \
+    "checkpoint-30" \
+    "checkpoint-50" \
+  --p_bin_edges "0,0.09375,0.375,0.65625,0.9375,1" \
+  --output "plots/gsm8k_p_compare_ckpt30_vs_ckpt50_bins_[0.375, 0.65625).png" \
+  --show_values
+
+
+  # 注释：--p_bin_edges "0,0.1,0.3,0.6,1" 
+  就会分成：
+   [0, 0.1)
+   [0.1, 0.3)
+   [0.3, 0.6)
+   [0.6, 1]
+   --p_bin_edges "0,0.125,0.28125,0.4375,0.59375,0.75,0.90625,1"
+
+   --p_bin_edges "0,0.09375,0.375,0.65625,0.9375,1"
+
+0.125   1       0.9615%
+0.21875 2       1.9231%
+0.25    2       1.9231%
+0.28125 1       0.9615%
+0.3125  5       4.8077%
+0.34375 7       6.7308%
+0.375   6       5.7692%
+0.40625 5       4.8077%
+0.4375  10      9.6154%
+0.46875 12      11.5385%
+0.5     14      13.4615%
+0.53125 8       7.6923%
+0.5625  12      11.5385%
+0.59375 5       4.8077%
+0.625   6       5.7692%
+0.65625 1       0.9615%
+0.6875  4       3.8462%
+0.71875 2       1.9231%
+0.78125 1       0.9615%
+
+conda run -n grpo_b python plot_p_distribution_compare_bins.py \
+  --inputs \
+    "outputs/merge_final/gsm8k_p_scores_final_no_truncation_2.jsonl" \
+    "outputs/merge_final/gsm8k_p_scores_final_no_truncation_2_checkpoint-10.jsonl" \
+    "outputs/merge_final/gsm8k_p_scores_final_no_truncation_2_checkpoint-20.jsonl" \
+    "outputs/merge_final/gsm8k_p_scores_final_no_truncation_2_checkpoint-30.jsonl" \
+    "outputs/merge_final/gsm8k_p_scores_final_no_truncation_2_checkpoint-50.jsonl" \
+  --labels \
+    "checkpoint-0" \
+    "checkpoint-10" \
+    "checkpoint-20" \
+    "checkpoint-30" \
+    "checkpoint-50" \
+  --p_bin_edges "0,0.09375,0.375,0.65625,0.9375,1" \
+  --output "plots/gsm8k_p_compare_ckpt0_ckpt10_ckpt20_ckpt30_ckpt50_bins_[0.4375, 0.65625).png" \
+  --show_values

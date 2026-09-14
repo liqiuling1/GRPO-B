@@ -1,0 +1,33 @@
+BEFORE="outputs/merge_final/gsm8k_p_scores_final_no_truncation_2_checkpoint-10.jsonl" \
+AFTER="outputs/merge_final/gsm8k_p_scores_final_no_truncation_2_checkpoint-30.jsonl" \
+P_RANGE="0.4375,0.59375" \
+OUTPUT_PREFIX="outputs/observe/p_pool_stability/p_pool_stability_ckpt10_vs_ckpt30_0.4375_to_0.59375" \
+bash run_analyze_p_pool_stability.sh
+
+BEFORE="outputs/merge_final/gsm8k_p_scores_final_no_truncation_2.jsonl" \
+AFTER="outputs/merge_final/gsm8k_p_scores_final_no_truncation_2_checkpoint-10.jsonl" \
+P_RANGE="0.375,0.65625" \
+OUTPUT_PREFIX="outputs/observe/p_pool_stability/p_pool_stability_ckpt0_vs_ckpt10_0.375_to_0.65625" \
+bash run_analyze_p_pool_stability.sh
+
+它会把目标难度区间定义成：
+
+S0 = before 文件中 p 落在目标区间的 uid 集合
+St = after 文件中 p 落在目标区间的 uid 集合
+统计这些指标：
+
+retention_ratio = |S0 ∩ St| / |S0|
+outflow_count   = |S0 - St|
+inflow_count    = |St - S0|
+jaccard_overlap = |S0 ∩ St| / |S0 ∪ St|
+还会输出：
+
+before_target_count
+after_target_count
+retained_count
+outflow_count
+inflow_count
+union_count
+outflow_ratio_of_before_target
+inflow_ratio_of_after_target
+jaccard_overlap

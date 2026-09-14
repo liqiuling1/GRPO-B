@@ -105,21 +105,105 @@ outputs/gsm8k_p_scores_final_no_truncation.jsonl
 每条都有 p
 最终纳入的评分结果都来自“没有截断”的那一轮
 
-收尾工作 最后一轮专用，即使有截断也把带 p 的评分行写进 OUT_FILE
-CONDA_ENV_NAME=grpo_b \
+# 文件合并 例子
+SCORE_FILES="\
+outputs/gsm8k_p_scores_448_p1_keep.jsonl \
+outputs/gsm8k_p_scores_1024_nontruncated.jsonl \
+outputs/第三个文件.jsonl \
+outputs/第四个文件.jsonl" \
+OUT_FILE=outputs/gsm8k_p_scores_final_no_truncation.jsonl \
+EXPECTED_COUNT=7473 \
+bash run_merge_score_files.sh
+
+# 跑偏移评估 找出截断用于二次评估
+# 第一轮 576
 CUDA_VISIBLE_DEVICES=0 \
-HF_HOME=$HOME/.cache/huggingface \
+CONDA_ENV_NAME=grpo_b \
 BASE_MODEL=Qwen/Qwen2.5-1.5B-Instruct \
-ADAPTER_PATH= \
-SPLIT=train \
-MAX_SAMPLES=0 \
+ADAPTER_PATH=pvar_sorted_1024_uid1_0-uid1_131_p_0.5/checkpoint-20 \
+UID_FILE=outputs/gsm8k_p_scores_final_no_truncation_2.jsonl \
+OUT_FILE=outputs/gsm8k_p_scores_final_no_truncation_2_576_notruncated_checkpoint-20.jsonl \
+TRUNCATION_OUT=outputs/gsm8k_p_scores_final_no_truncation_2_576_truncated_need_1536_checkpoint-20.jsonl \
+SUMMARY_FILE=outputs/gsm8k_p_scores_final_no_truncation_2_576_checkpoint-20_summary.json \
 K=32 \
-MAX_NEW_TOKENS=2048 \
-GENERATION_BATCH_SIZE=8 \
-PROMPT_BATCH_SIZE=1 \
+MAX_NEW_TOKENS=576 \
+GENERATION_BATCH_SIZE=32 \
+PROMPT_BATCH_SIZE=2 \
 PROMPT_STYLE=short \
 USE_4BIT=1 \
-UID_FILE=outputs/gsm8k_p_scores_2048_truncated_need_3072_uids.jsonl \
-OUT_FILE=outputs/gsm8k_p_scores_2048_final_keep_truncated.jsonl \
-SUMMARY_FILE=outputs/gsm8k_p_summary_2048_final_keep_truncated.json \
+RESUME=1 \
+bash run_gsm8k_p_filter.sh
+
+# 第二轮 1024
+CUDA_VISIBLE_DEVICES=0 \
+CONDA_ENV_NAME=grpo_b \
+BASE_MODEL=Qwen/Qwen2.5-1.5B-Instruct \
+ADAPTER_PATH=pvar_sorted_1024_uid1_0-uid1_131_p_0.5/checkpoint-20 \
+UID_FILE=outputs/gsm8k_p_scores_final_no_truncation_2.jsonl \
+OUT_FILE=outputs/gsm8k_p_scores_final_no_truncation_2_1024_notruncated_checkpoint-20.jsonl \
+TRUNCATION_OUT=outputs/gsm8k_p_scores_final_no_truncation_2_1024_truncated_need_1536_checkpoint-20.jsonl \
+SUMMARY_FILE=outputs/gsm8k_p_scores_final_no_truncation_2_1024_checkpoint-20_summary.json \
+K=32 \
+MAX_NEW_TOKENS=1024 \
+GENERATION_BATCH_SIZE=32 \
+PROMPT_BATCH_SIZE=2 \
+PROMPT_STYLE=short \
+USE_4BIT=1 \
+RESUME=1 \
+bash run_gsm8k_p_filter.sh
+
+# 保持截断收尾
+CUDA_VISIBLE_DEVICES=0 \
+CONDA_ENV_NAME=grpo_b \
+BASE_MODEL=Qwen/Qwen2.5-1.5B-Instruct \
+ADAPTER_PATH=pvar_sorted_1024_uid1_0-uid1_131_p_0.5/checkpoint-30 \
+UID_FILE=outputs/gsm8k_p_scores_final_no_truncation_2_1024_truncated_need_1536_checkpoint-30.jsonl \
+OUT_FILE=outputs/gsm8k_p_scores_final_no_truncation_2_1536_keep_truncated_checkpoint-30.jsonl \
+SUMMARY_FILE=outputs/gsm8k_p_scores_final_no_truncation_2_1536_keep_truncated_checkpoint-30_summary.json \
+K=32 \
+MAX_NEW_TOKENS=1536 \
+GENERATION_BATCH_SIZE=32 \
+PROMPT_BATCH_SIZE=2 \
+PROMPT_STYLE=short \
+USE_4BIT=1 \
+RESUME=1 \
 bash run_gsm8k_p_filter_final_keep_truncated.sh
+
+CUDA_VISIBLE_DEVICES=0 \
+CONDA_ENV_NAME=grpo_b \
+BASE_MODEL=Qwen/Qwen2.5-1.5B-Instruct \
+ADAPTER_PATH=pvar_sorted_1024_uid1_0-uid1_131_p_0.5/checkpoint-50 \
+UID_FILE=outputs/g_1.jsonl \
+OUT_FILE=outputs/g_22-50.jsonl \
+SUMMARY_FILE=outputs/g_22-50_summary.json \
+K=32 \
+MAX_NEW_TOKENS=1536 \
+GENERATION_BATCH_SIZE=32 \
+PROMPT_BATCH_SIZE=2 \
+PROMPT_STYLE=short \
+USE_4BIT=1 \
+bash run_gsm8k_p_filter_final_keep_truncated.sh
+
+
+scp -P 22 -r /home/ling/GRPO-B/pvar_sorted_1024_uid1_0-uid1_131_p_0.5 changqingcheng@172.23.19.2:/home/changqingcheng/baseline2.0
+
+scp -P 30508 -r /home/ling/GRPO-B/pvar_sorted_1024_uid1_0-uid1_131_p_0.5 root@sc01-ssh.gpuhome.cc:/root/rivermind-data/workspace/GRPO-B/
+
+scp -P 50052 -r /home/ling/GRPO-B/pvar_sorted_1024_uid1_0-uid1_131_p_0.5 root@js01-ssh.gpuhome.cc:/root/rivermind-data/GRPO-B/
+scp -P 50052 root@js01-ssh.gpuhome.cc:/root/rivermind-data/GRPO-B/outputs/gsm8k_p_scores_final_no_truncation_2_1024_notruncated_checkpoint-10.jsonl /home/ling/GRPO-B/outputs/
+
+
+SCORE_FILES="\
+outputs/gsm8k_p_scores_final_10%_after_pvar_uid1_0-131-100%/gsm8k_p_scores_final_no_truncation_2_1024_notruncated_checkpoint-50.jsonl \
+outputs/gsm8k_p_scores_final_10%_after_pvar_uid1_0-131-100%/gsm8k_p_scores_final_no_truncation_2_1536_keep_truncated_checkpoint-50.jsonl" \
+OUT_FILE=outputs/merge_final/gsm8k_p_scores_final_no_truncation_2_checkpoint-50.jsonl \
+EXPECTED_COUNT=7472 \
+bash run_merge_score_files.sh
+
+SCORE_FILES="\
+outputs/gsm8k_p_scores_final_10%_after_pvar_uid1_0-131-100%/gsm8k_p_scores_final_no_truncation_2_576_notruncated_checkpoint-20.jsonl \
+outputs/gsm8k_p_scores_final_10%_after_pvar_uid1_0-131-100%/gsm8k_p_scores_final_no_truncation_2_1024_notruncated_checkpoint-20.jsonl \
+outputs/gsm8k_p_scores_final_10%_after_pvar_uid1_0-131-100%/gsm8k_p_scores_final_no_truncation_2_1536_keep_truncated_checkpoint-20.jsonl" \
+OUT_FILE=outputs/merge_final/gsm8k_p_scores_final_no_truncation_2_checkpoint-20.jsonl \
+EXPECTED_COUNT=7473 \
+bash run_merge_score_files.sh

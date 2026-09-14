@@ -10,7 +10,7 @@ from trl import GRPOConfig  # 导入 GRPO 训练配置
 from dataset_utils import build_grpo_dataset  # 导入用于构建 GRPO 训练数据集的函数
 from instrumented_grpo_trainer import InstrumentedGRPOTrainer  # 导入带 advantage 监控的 GRPO 训练器
 from model_utils import load_model_for_training, load_tokenizer, resolve_cached_model_path  # 导入模型和分词器加载函数
-from reward_utils import final_answer_format_reward, gsm8k_correctness_reward  # 导入奖励函数
+from reward_utils import CompletionTokenLengthReward, final_answer_format_reward, gsm8k_correctness_reward  # 导入奖励函数
 
 
 def seed_everything(seed: int = 42):  # 统一设置各类随机种子以增强实验可复现性
@@ -43,6 +43,11 @@ def parse_args():  # 定义并解析训练脚本所需的命令行参数
     parser.add_argument("--warmup_ratio", type=float, default=0.03)  # 设置学习率预热比例参数
     parser.add_argument("--num_generations", type=int, default=4)  # 设置每个提示生成的样本数参数
     parser.add_argument("--max_completion_length", type=int, default=448)  # 设置最大生成长度参数
+    parser.add_argument("--length_reward_weight", type=float, default=0.0)  # 设置长度 reward 权重，0 表示关闭
+    parser.add_argument("--length_reward_good_min", type=int, default=None)  # 设置不扣长度分的 token 下界
+    parser.add_argument("--length_reward_good_max", type=int, default=None)  # 设置不扣长度分的 token 上界
+    parser.add_argument("--length_reward_short_min", type=int, default=0)  # 设置极短回答惩罚区间下界
+    parser.add_argument("--length_reward_max_penalty", type=float, default=1.0)  # 设置长度 reward 最大扣分
     parser.add_argument("--temperature", type=float, default=1.0)  # 设置采样温度参数
     parser.add_argument("--top_p", type=float, default=0.95)  # 设置 top-p 采样参数
     parser.add_argument("--beta", type=float, default=0.0)  # 设置 GRPO 中的 beta 参数
@@ -73,11 +78,36 @@ def main():  # 定义训练脚本主流程
             f"gradient_accumulation_steps={args.gradient_accumulation_steps}, "  # 错误信息中追加梯度累积步数
             f"num_generations={args.num_generations}."  # 错误信息中追加生成数量
         )  # 结束异常抛出
+    if args.length_reward_weight < 0:  # 检查长度 reward 权重是否合法
+        raise ValueError("--length_reward_weight must be non-negative.")  # 长度 reward 权重不能为负
+    if args.length_reward_short_min < 0:  # 检查短回答惩罚下界是否合法
+        raise ValueError("--length_reward_short_min must be non-negative.")  # 短回答惩罚下界不能为负
+    if args.length_reward_max_penalty < 0:  # 检查最大长度惩罚是否合法
+        raise ValueError("--length_reward_max_penalty must be non-negative.")  # 最大长度惩罚不能为负
+    length_reward_good_min = args.length_reward_good_min if args.length_reward_good_min is not None else 60
+    length_reward_good_max = args.length_reward_good_max if args.length_reward_good_max is not None else 650
+    if length_reward_good_min < args.length_reward_short_min:  # 检查长度 reward 的不扣分下界
+        raise ValueError("--length_reward_good_min must be >= --length_reward_short_min.")
+    if length_reward_good_max < length_reward_good_min:  # 检查长度 reward 的不扣分上界
+        raise ValueError("--length_reward_good_max must be >= --length_reward_good_min.")
+    if length_reward_good_max >= args.max_completion_length:  # 检查软上界必须小于生成硬上限
+        raise ValueError("--length_reward_good_max must be smaller than --max_completion_length.")
 
     use_bf16 = torch.cuda.is_available() and torch.cuda.is_bf16_supported()  # 根据硬件能力判断是否使用 bf16
     use_fp16 = torch.cuda.is_available() and not use_bf16  # 在有 CUDA 且不支持 bf16 时退回到 fp16
 
     print("模型初始化，加载数据中...")  # 打印数据加载开始提示
+    if args.length_reward_weight > 0:
+        print(
+            "Length reward: "
+            f"weight={args.length_reward_weight}, "
+            f"good_range=[{length_reward_good_min}, {length_reward_good_max}], "
+            f"short_min={args.length_reward_short_min}, "
+            f"max_penalty={args.length_reward_max_penalty}, "
+            f"max_completion_length={args.max_completion_length}"
+        )
+    else:
+        print("Length reward: disabled")
     train_dataset = build_grpo_dataset(  # 构建用于 GRPO 训练的数据集
         split=args.train_split,  # 指定使用的数据集切分
         dataset_path=args.dataset_path,  # 如果给定显式本地数据集路径，则优先从该路径加载
@@ -122,6 +152,20 @@ def main():  # 定义训练脚本主流程
         peft_config.base_model_name_or_path = resolved_base_model_path
     model.print_trainable_parameters()  # 打印当前可训练参数统计信息
 
+    reward_funcs = [gsm8k_correctness_reward, final_answer_format_reward]  # 设置默认奖励函数
+    reward_weights = [1.0, 0.1]  # 设置默认奖励权重
+    if args.length_reward_weight > 0:  # 如果启用长度 reward，则追加到奖励函数列表
+        reward_funcs.append(
+            CompletionTokenLengthReward(
+                max_length=args.max_completion_length,
+                good_min=length_reward_good_min,
+                good_max=length_reward_good_max,
+                short_min=args.length_reward_short_min,
+                max_penalty=args.length_reward_max_penalty,
+            )
+        )
+        reward_weights.append(args.length_reward_weight)
+
     training_args = GRPOConfig(  # 创建 GRPO 训练配置对象
         output_dir=args.output_dir,  # 指定训练输出目录
         max_steps=args.max_steps,  # 设置最大训练步数
@@ -152,7 +196,7 @@ def main():  # 定义训练脚本主流程
         num_iterations=1,  # 设置每次更新的迭代次数
         scale_rewards="group",  # 指定按组对奖励进行缩放
         loss_type="dapo",  # 指定使用 dapo 类型损失
-        reward_weights=[1.0, 0.1],  # 设置两个奖励函数的权重
+        reward_weights=reward_weights,  # 设置奖励函数权重
         log_completions=False,  # 关闭 completion 日志记录
     )  # 结束训练配置创建
 
@@ -161,7 +205,7 @@ def main():  # 定义训练脚本主流程
         args=training_args,  # 传入训练配置参数
         train_dataset=train_dataset,  # 传入训练数据集
         processing_class=tokenizer,  # 传入用于处理文本的分词器
-        reward_funcs=[gsm8k_correctness_reward, final_answer_format_reward],  # 指定训练时使用的奖励函数列表
+        reward_funcs=reward_funcs,  # 指定训练时使用的奖励函数列表
     )  # 结束训练器创建
 
     print("开始训练...")  # 打印训练开始提示

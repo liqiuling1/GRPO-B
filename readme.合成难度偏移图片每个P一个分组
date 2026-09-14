@@ -1,0 +1,17 @@
+conda run -n grpo_b python plot_p_distribution_compare.py \
+  --inputs \
+    "outputs/merge_final/gsm8k_p_scores_final_no_truncation_2_checkpoint-30.jsonl" \
+    "outputs/merge_final/gsm8k_p_scores_final_no_truncation_2_checkpoint-50.jsonl" \
+  --labels \
+    "checkpoint-30" \
+    "checkpoint-50" \
+  --output "plots/gsm8k_p_compare_ckpt30_vs_ckpt50.png"
+
+conda run -n grpo_b python plot_p_distribution_compare.py \
+  --inputs \
+    "outputs/merge_final/gsm8k_p_scores_final_no_truncation_keep_final_2_10pct.jsonl" \
+    "outputs/gsm8k_p_scores_final_10%_after_pvar_uid1_0-131/gsm8k_p_scores_final_10%_after_pvar_uid1_0-131_checkpoint-50.jsonl" \
+  --labels \
+    "final_10%" \
+    "checkpoint-50" \
+  --output "plots/gsm8k_p_compare_final10_2_vs_ckpt50.png"

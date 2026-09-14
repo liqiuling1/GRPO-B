@@ -1,6 +1,7 @@
 import glob
 import json
 import os
+import random
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -165,6 +166,7 @@ def build_grpo_dataset(
     max_uid1: Optional[int] = None,
     prompt_style: str = "short",
     dataset_path: Optional[str] = None,
+    shuffle_selected_rows: bool = False,
 ) -> Dataset:
     if selected_rows_path:
         if min_uid1 is not None and max_uid1 is not None and min_uid1 > max_uid1:
@@ -185,6 +187,10 @@ def build_grpo_dataset(
                     continue
                 filtered_rows.append(row)
             selected_rows = filtered_rows
+
+        if shuffle_selected_rows:
+            rng = random.Random(seed)
+            rng.shuffle(selected_rows)
 
         selected_indices: List[int] = []
         for row in selected_rows:

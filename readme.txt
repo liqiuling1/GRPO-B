@@ -93,7 +93,9 @@ bash run_lm_eval_gsm8k.sh \
 跑评估的命令行
   bash run_lm_eval_gsm8k.sh ./grpo_qwen25_15b_gsm8k_lora_pvar_uid1_0_to_5188/checkpoint-300
   bash run_lm_eval_gsm8k.sh --max_gen_toks 512 ./grpo_qwen25_15b_gsm8k_lora_pvar_uid1_0_to_5188/checkpoint-300
-  bash run_lm_eval_gsm8k.sh --max_gen_toks 512 ./grpo_qwen25_15b_gsm8k_lora_grpo_baseline_256/checkpoint-2500
+  bash run_lm_eval_gsm8k.sh --max_gen_toks 512 ./grpo_qwen25_15b_gsm8k_lora_grpo_baseline_1024_1gpu/checkpoint-1500
+bash run_lm_eval_gsm8k.sh --gpu 1 --max_gen_toks 1536 ./grpo_qwen25_15b_gsm8k_lora_grpo_baseline_1024_1gpu/checkpoint-900
+bash run_lm_eval_gsm8k.sh --gpu 1 --no_adapter --max_gen_toks 1536 原始模型
 
 跑模型的命令
 
@@ -160,10 +162,17 @@ bash run_train.sh \
   --output_dir ./grpo_qwen25_15b_gsm8k_lora_uid1_st_0_end_495_base_1st
 
 
+# 跑最原始版
   bash run_train.sh \
   --base_model Qwen/Qwen2.5-1.5B-Instruct \
   --dataset_path /home/ling/.cache/huggingface/datasets/openai___gsm8k/main/0.0.0/740312add88f781978c0658806c59bc2815b9866/gsm8k-train.arrow \
   --output_dir ./grpo_qwen25_15b_gsm8k_lora_grpo_baseline 
+
+  bash run_train.sh \
+  --base_model Qwen/Qwen2.5-0.5B-Instruct \
+  --dataset_path /home/ling/.cache/huggingface/datasets/openai___gsm8k/main/0.0.0/740312add88f781978c0658806c59bc2815b9866/gsm8k-train.arrow \
+  --output_dir ./grpo_qwen25_05b_gsm8k_lora_grpo_baseline
+
 
   权重打包
   tar -cf /tmp/grpo_qwen25_15b_gsm8k_lora_grpo_baseline.tar grpo_qwen25_15b_gsm8k_lora_grpo_baseline
@@ -171,9 +180,8 @@ bash run_train.sh \
   U盘复制进文件夹 
   cd /home/nhlling/rl_project
   ls -lh grpo_qwen25_15b_gsm8k_lora_grpo_baseline.tar
-
-  # 样例
-  tar -cf /tmp/hf_cache.tar hf_cache
+# 样例
+  tar -cf /tmp/hf_cache.tar hf_cache 
   cd /home/nhlling/rl_project
 
 tar -cf /tmp/grpo_qwen25_15b_gsm8k_lora_pvar_uid1_0_to_5188.tar grpo_qwen25_15b_gsm8k_lora_pvar_uid1_0_to_5188
@@ -234,9 +242,13 @@ tar -czvf /tmp/qwen25_15b_gsm8k_hf_cache.tar.gz \
   hub/datasets--openai--gsm8k
 
 # 从服务器下载模型参数
-scp -r changqingcheng@172.23.19.2:~/baseline2.0/grpo_qwen25_15b_gsm8k_lora_grpo_baseline_1024_1gpu/checkpoint-700 ~/GRPO-B/
+scp -r changqingcheng@172.23.19.2:~/baseline2.0/pvar_sorted_1024_uid1_0-uid1_131_p_0.5/checkpoint-30 ~/GRPO-B/
 
 for i in 200 500 1000 1500 2000 2500 3000 3500 
 do
   rsync -avP changqingcheng@172.23.19.2:~/baseline2.0/grpo_qwen25_15b_gsm8k_lora_grpo_baseline_1024_1gpu/checkpoint-$i ~/GRPO-B/outputs/
 done
+
+scp -P 50052 /tmp/qwen25_15b_gsm8k_hf_cache.tar.gz root@js01-ssh.gpuhome.cc:/root/rivermind-data/GRPO-B/
+scp -P 50052 outputs/90%_remaining_pvar_sorted.jsonl root@js01-ssh.gpuhome.cc:/root/rivermind-data/GRPO-B/outputs/
+mkdir -p outputs

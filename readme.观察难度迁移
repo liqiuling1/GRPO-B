@@ -1,0 +1,19 @@
+BEFORE="outputs/merge_final/gsm8k_p_scores_final_no_truncation_2_checkpoint-30.jsonl" \
+AFTER="outputs/merge_final/gsm8k_p_scores_final_no_truncation_2_checkpoint-50.jsonl" \
+OBSERVE_P="0.5" \
+OUTPUT_PREFIX="outputs/observe/All_p_transition_ckpt30_vs_ckpt50_observe_0.5" \
+bash run_analyze_p_transition.sh
+
+OBSERVE_P_RANGE_RIGHT_CLOSED=1
+BEFORE="outputs/merge_final/gsm8k_p_scores_final_no_truncation_2.jsonl" \
+AFTER="outputs/merge_final/gsm8k_p_scores_final_no_truncation_2_checkpoint-10.jsonl" \
+OBSERVE_P_RANGE="1,1" \
+OUTPUT_PREFIX="outputs/observe/All_p_transition_ckpt0_vs_ckpt10_observe_1_to_1" \
+bash run_analyze_p_transition.sh
+
+这个样例观察的是：
+
+[0.375, 0.65625)
+如果你想包含右端点 0.65625，加上：
+
+OBSERVE_P_RANGE_RIGHT_CLOSED=1

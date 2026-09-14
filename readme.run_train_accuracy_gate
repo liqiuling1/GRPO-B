@@ -1,0 +1,65 @@
+
+PYTORCH_ALLOC_CONF=expandable_segments:True \
+CUDA_VISIBLE_DEVICES=0 \
+NUM_PROCESSES=1 \
+MAX_COMPLETION_LENGTH=1024 \
+PROMPT_STYLE=short \
+bash run_train_accuracy_gate.sh \
+  --base_model Qwen/Qwen2.5-1.5B-Instruct \
+  --dataset_path /home/changqingcheng/.cache/huggingface/datasets/openai___gsm8k/main/0.0.0/740312add88f781978c0658806c59bc2815b9866/gsm8k-train.arrow \
+  --output_dir ./grpo_qwen25_15b_gsm8k_lora_accuracy_gate_1024_1gpu \
+  --min_correct_rate 0.375 \
+  --max_correct_rate 0.625 \
+  --target_update_steps 50 \
+  --max_attempt_steps 1000 \
+  --batch_size 8 \
+  --grad_acc 2 \
+  --num_generations 16 \
+  --max_completion_length 1024 \
+  --save_steps 25 \
+  ./grpo_qwen25_15b_gsm8k_lora_grpo_baseline_1024_2gpu/checkpoint-725
+
+样例
+CUDA_VISIBLE_DEVICES=0 \
+NUM_PROCESSES=1 \
+MAX_COMPLETION_LENGTH=1024 \
+PROMPT_STYLE=short \
+bash run_train_accuracy_gate.sh \
+  --base_model Qwen/Qwen2.5-1.5B-Instruct \
+  --dataset_path /home/changqingcheng/.cache/huggingface/datasets/openai___gsm8k/main/0.0.0/740312add88f781978c0658806c59bc2815b9866/gsm8k-train.arrow \
+  --output_dir ./grpo_qwen25_15b_gsm8k_lora_accuracy_gate_1024_1gpu \
+  --min_correct_rate 0.375 \
+  --max_correct_rate 0.625 \
+  --target_update_steps 100 \
+  --max_attempt_steps 10000 \
+  --batch_size 8 \
+  --grad_acc 2 \
+  --num_generations 16 \
+  --max_completion_length 1024 \
+  --save_steps 5 \
+  ./grpo_qwen25_15b_gsm8k_lora_accuracy_gate_1024_1gpu/checkpoint-50
+
+
+0.5B 模型从头训练（服务器）
+
+模型目录：
+/home/changqingcheng/.cache/huggingface/hub/models--Qwen--Qwen2.5-0.5B-Instruct/snapshots/7ae557604adf67be50417f59c2c2f167def9a775
+
+PYTORCH_ALLOC_CONF=expandable_segments:True \
+CUDA_VISIBLE_DEVICES=0 \
+NUM_PROCESSES=1 \
+MAX_COMPLETION_LENGTH=1024 \
+PROMPT_STYLE=short \
+bash run_train_accuracy_gate.sh \
+  --base_model /home/changqingcheng/.cache/huggingface/hub/models--Qwen--Qwen2.5-0.5B-Instruct/snapshots/7ae557604adf67be50417f59c2c2f167def9a775 \
+  --dataset_path /home/changqingcheng/.cache/huggingface/datasets/openai___gsm8k/main/0.0.0/740312add88f781978c0658806c59bc2815b9866/gsm8k-train.arrow \
+  --output_dir ./grpo_qwen25_05b_gsm8k_lora_accuracy_gate_1024_1gpu \
+  --min_correct_rate 0.375 \
+  --max_correct_rate 0.625 \
+  --target_update_steps 1000 \
+  --max_attempt_steps 10000 \
+  --batch_size 8 \
+  --grad_acc 2 \
+  --num_generations 16 \
+  --max_completion_length 1024 \
+  --save_steps 10

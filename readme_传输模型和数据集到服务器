@@ -83,3 +83,29 @@ export TRANSFORMERS_OFFLINE=1
 export HF_DATASETS_OFFLINE=1
 
 jzx1saww
+
+
+# 从服务器下载模型到本地
+在你本地 WSL 终端执行这个：
+
+scp -P 50052 -r root@js01-ssh.gpuhome.cc:/root/rivermind-data/GRPO-B/pvar_sorted_1024_uid1_0-uid1_131_p_0.5 /home/ling/GRPO-B/
+下载完后，本地会得到：
+
+/home/ling/GRPO-B/pvar_sorted_1024_uid1_0-uid1_131_p_0.5
+如果文件夹比较大，更稳的方式是先在服务器上打包：
+
+ssh A100-server
+
+cd /root/rivermind-data/GRPO-B
+tar -czvf pvar_sorted_1024_uid1_0-uid1_131_p_0.5.tar.gz pvar_sorted_1024_uid1_0-uid1_131_p_0.5
+然后回到本地下载：
+
+scp A100-server:/root/rivermind-data/GRPO-B/pvar_sorted_1024_uid1_0-uid1_131_p_0.5.tar.gz /home/ling/GRPO-B/
+下载后解压：
+
+cd /home/ling/GRPO-B
+tar -xzvf pvar_sorted_1024_uid1_0-uid1_131_p_0.5.tar.gz
+推荐用打包方式，checkpoint 文件夹里小文件多，直接 scp -r 容易慢或者中断。
+
+ssh changqingcheng@172.23.19.2 "cd /home/changqingcheng/baseline2.0/grpo_qwen25_15b_gsm8k_lora_grpo_baseline_1024_1gpu && tar -czf - checkpoint-{525..975..25}" | \
+tar -xzf - -C /home/ling/GRPO-B/grpo_qwen25_15b_gsm8k_lora_grpo_baseline_1024_1gpu/

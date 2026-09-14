@@ -1,7 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
+GPU_IDS="${CUDA_VISIBLE_DEVICES:-0}"
+export CUDA_VISIBLE_DEVICES="${GPU_IDS}"
 export HF_HOME="${HF_HOME:-$HOME/.cache/huggingface}"
 export HF_HUB_OFFLINE="${HF_HUB_OFFLINE:-1}"
 export TRANSFORMERS_OFFLINE="${TRANSFORMERS_OFFLINE:-1}"
@@ -23,6 +24,7 @@ usage() {
   --batch_size N             batch size，默认 1
   --max_gen_toks N           最大生成 token 数，默认 512
   --limit N                  只评前 N 条样本，默认全量
+  --gpu GPU_IDS              指定用于评测的物理显卡，例如 0 或 1，默认 CUDA_VISIBLE_DEVICES 或 0
   --env ENV_NAME             conda 环境名，默认 grpo_b
   --output_path PATH         lm-eval 结果输出目录，默认 logs/lm_eval_<task>_<time>
   --no_adapter               不加载 LoRA adapter，直接评估 base model
@@ -34,6 +36,7 @@ usage() {
   bash run_lm_eval_gsm8k.sh
   bash run_lm_eval_gsm8k.sh ./grpo_qwen25_15b_gsm8k_lora_grpo_baseline_2500_256_advantage_8X1/checkpoint-2500
   bash run_lm_eval_gsm8k.sh --limit 100 --batch_size 2
+  bash run_lm_eval_gsm8k.sh --gpu 1 --max_gen_toks 1536 ./grpo_qwen25_15b_gsm8k_lora_grpo_baseline_1024_1gpu/checkpoint-2500
   bash run_lm_eval_gsm8k.sh --max_gen_toks 512 ./grpo_qwen25_15b_gsm8k_lora_pvar_uid1_0_to_5188/checkpoint-300
 EOF
 }
@@ -106,6 +109,16 @@ while [ $# -gt 0 ]; do
         exit 1
       fi
       LIMIT="$2"
+      shift 2
+      ;;
+    --gpu)
+      if [ $# -lt 2 ]; then
+        echo "Error: --gpu requires a value"
+        usage
+        exit 1
+      fi
+      GPU_IDS="$2"
+      export CUDA_VISIBLE_DEVICES="${GPU_IDS}"
       shift 2
       ;;
     --env)
@@ -268,7 +281,9 @@ fi
   echo "Num fewshot: ${NUM_FEWSHOT}"
   echo "Batch size: ${BATCH_SIZE}"
   echo "Max gen toks: ${MAX_GEN_TOKS}"
+  echo "Selected physical GPU(s): ${GPU_IDS}"
   echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES}"
+  echo "lm-eval device: cuda:0"
   echo "HF_HOME: ${HF_HOME}"
   echo "HF_HUB_OFFLINE: ${HF_HUB_OFFLINE}"
   echo "TRANSFORMERS_OFFLINE: ${TRANSFORMERS_OFFLINE}"

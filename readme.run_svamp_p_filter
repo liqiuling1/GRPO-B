@@ -1,0 +1,17 @@
+CUDA_VISIBLE_DEVICES=0 \
+CONDA_ENV_NAME=grpo_b \
+BASE_MODEL=Qwen/Qwen2.5-0.5B-Instruct \
+ADAPTER_PATH= \
+DATASET_PATH=data/svamp-train.arrow \
+UID_FILE=outputs/SVAMP/svamp_train_uids.jsonl \
+OUT_FILE=outputs/SVAMP/svamp_p_scores_1024_notruncated_base_0.5b.jsonl \
+TRUNCATION_OUT=outputs/SVAMP/svamp_p_scores_1024_truncated_need_1536_base_0.5b.jsonl \
+SUMMARY_FILE=outputs/SVAMP/svamp_p_scores_1024_base_0.5b_summary.json \
+K=16 \
+MAX_NEW_TOKENS=1024 \
+GENERATION_BATCH_SIZE=16 \
+PROMPT_BATCH_SIZE=2 \
+PROMPT_STYLE=short \
+USE_4BIT=1 \
+RESUME=1 \
+bash run_svamp_p_filter.sh

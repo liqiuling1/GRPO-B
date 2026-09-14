@@ -94,3 +94,64 @@ def final_answer_format_reward(completions, **kwargs) -> List[float]:  # 检查�
         has_format = LM_EVAL_STRICT_ANSWER_RE.search(_strip_boxed(text))  # 检查文本中是否存在 lm-eval 的严格答案格式
         rewards.append(1.0 if has_format else 0.0)  # 命中格式给 1.0，否则给 0.0
     return rewards  # 返回整批样本的格式奖励结果
+
+
+class CompletionTokenLengthReward:
+    def __init__(
+        self,
+        max_length: int,
+        good_min: int,
+        good_max: int,
+        short_min: int = 0,
+        max_penalty: float = 1.0,
+    ):
+        if max_length <= 0:
+            raise ValueError("max_length must be positive.")
+        if short_min < 0:
+            raise ValueError("short_min must be non-negative.")
+        if good_min < short_min:
+            raise ValueError("good_min must be greater than or equal to short_min.")
+        if good_max < good_min:
+            raise ValueError("good_max must be greater than or equal to good_min.")
+        if good_max >= max_length:
+            raise ValueError("good_max must be smaller than max_length.")
+        if max_penalty < 0:
+            raise ValueError("max_penalty must be non-negative.")
+
+        self.max_length = max_length
+        self.good_min = good_min
+        self.good_max = good_max
+        self.short_min = short_min
+        self.max_penalty = max_penalty
+        self.__name__ = "completion_token_length_reward"
+
+    def __call__(self, completions, completion_ids=None, **kwargs) -> List[float]:
+        rewards: List[float] = []
+        if completion_ids is None:
+            # Fallback for older trainer APIs. Character length is only a rough proxy,
+            # but keeps the reward callable safe if token ids are unavailable.
+            lengths = [len(_completion_to_text(completion)) for completion in completions]
+            good_min = self.good_min * 4
+            good_max = self.good_max * 4
+            short_min = self.short_min * 4
+            max_length = self.max_length * 4
+        else:
+            lengths = [len(ids) for ids in completion_ids]
+            good_min = self.good_min
+            good_max = self.good_max
+            short_min = self.short_min
+            max_length = self.max_length
+
+        short_penalty_span = max(good_min - short_min, 1)
+        long_penalty_span = max(max_length - good_max, 1)
+        for length in lengths:
+            if length < good_min:
+                penalty_ratio = min(max((good_min - length) / short_penalty_span, 0.0), 1.0)
+                rewards.append(-self.max_penalty * penalty_ratio)
+                continue
+            if length <= good_max:
+                rewards.append(0.0)
+                continue
+            penalty_ratio = min(max((length - good_max) / long_penalty_span, 0.0), 1.0)
+            rewards.append(-self.max_penalty * penalty_ratio)
+        return rewards

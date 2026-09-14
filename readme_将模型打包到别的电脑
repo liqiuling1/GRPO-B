@@ -1,0 +1,61 @@
+在本地 /home/ling/GRPO-B 目录下执行：
+
+cd /home/ling/GRPO-B
+
+tar -czvf pvar_sorted_1024_uid1_0-uid1_131_p_0.5.tar.gz \
+  pvar_sorted_1024_uid1_0-uid1_131_p_0.5
+打包完成后会得到：
+
+/home/ling/GRPO-B/pvar_sorted_1024_uid1_0-uid1_131_p_0.5.tar.gz
+检查大小：
+
+ls -lh pvar_sorted_1024_uid1_0-uid1_131_p_0.5.tar.gz
+然后你可以把这个 .tar.gz 文件复制到别的电脑。
+
+如果在另一台电脑上解压：
+
+tar -xzvf pvar_sorted_1024_uid1_0-uid1_131_p_0.5.tar.gz
+
+tar --exclude='GRPO-B/grpo_qwen25_15b_gsm8k_lora_from_uid1_2287_short' \
+    --exclude='GRPO-B/grpo_qwen25_15b_gsm8k_lora_grpo_baseline_256' \
+    --exclude='GRPO-B/grpo_qwen25_15b_gsm8k_lora_grpo_baseline_448' \
+    --exclude='GRPO-B/grpo_qwen25_15b_gsm8k_lora_pvar_uid1_0_to_5188' \
+    --exclude='GRPO-B/grpo_qwen25_15b_gsm8k_lora_uid1_st_0_end_495_base_1st' \
+    --exclude='GRPO-B/logs' \
+    -czf GRPO-B.tar.gz GRPO-B
+
+到了新电脑之后，把压缩包放到 /home/nhlling 下，然后解压：
+
+cd /home/nhlling
+tar -xzf GRPO-B.tar.gz
+cd GRPO-B
+
+到新电脑后，建议这样做：
+
+cd /home/nhlling
+先备份旧代码，如果已经存在：
+
+mv GRPO-B GRPO-B_old_$(date +%Y%m%d_%H%M%S)
+再解压新的代码：
+
+tar -xzf GRPO-B.tar.gz
+然后处理 conda 环境。先看新电脑有没有旧的 grpo_b：
+
+ls -ld /home/nhlling/miniconda3/envs/grpo_b
+如果存在，先改名备份：
+
+mv /home/nhlling/miniconda3/envs/grpo_b /home/nhlling/miniconda3/envs/grpo_b_old_$(date +%Y%m%d_%H%M%S)
+再解压你带过去的新环境：
+
+mkdir -p /home/nhlling/miniconda3/envs
+tar -xzf grpo_b_conda_env.tar.gz -C /home/nhlling/miniconda3/envs
+最后测试：
+
+conda activate grpo_b
+python -V
+cd /home/nhlling/GRPO-B
+python -c "import torch, transformers, trl, peft, accelerate; print('ok')"
+如果 conda activate grpo_b 不正常，就直接用完整路径测试：
+
+/home/nhlling/miniconda3/envs/grpo_b/bin/python -V
+/home/nhlling/miniconda3/envs/grpo_b/bin/python -c "import torch, transformers, trl, peft, accelerate; print('ok')"

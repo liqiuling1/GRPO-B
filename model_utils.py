@@ -30,6 +30,16 @@ def _candidate_hf_homes() -> List[Path]:
     return homes
 
 
+def _has_model_weights(model_dir: Path) -> bool:
+    weight_files = (
+        "model.safetensors",
+        "model.safetensors.index.json",
+        "pytorch_model.bin",
+        "pytorch_model.bin.index.json",
+    )
+    return any((model_dir / filename).is_file() for filename in weight_files)
+
+
 def resolve_cached_model_path(model_name_or_path: str) -> str:
     if os.path.isdir(model_name_or_path):
         return model_name_or_path
@@ -44,12 +54,16 @@ def resolve_cached_model_path(model_name_or_path: str) -> str:
         if ref_path.is_file():
             revision = ref_path.read_text(encoding="utf-8").strip()
             snapshot_dir = repo_dir / "snapshots" / revision
-            if snapshot_dir.is_dir():
+            if snapshot_dir.is_dir() and _has_model_weights(snapshot_dir):
                 return str(snapshot_dir)
 
         snapshots_dir = repo_dir / "snapshots"
         if snapshots_dir.is_dir():
-            candidates = sorted(path for path in snapshots_dir.iterdir() if path.is_dir())
+            candidates = sorted(
+                path
+                for path in snapshots_dir.iterdir()
+                if path.is_dir() and _has_model_weights(path)
+            )
             if candidates:
                 return str(candidates[-1])
 
@@ -118,7 +132,7 @@ def load_model_for_training(
         resolved_model_name,
         trust_remote_code=True,
         device_map=get_training_device_map(use_4bit=use_4bit),
-        torch_dtype=compute_dtype,
+        dtype=compute_dtype,
         quantization_config=quantization_config,
         local_files_only=local_only,
     )
@@ -152,7 +166,7 @@ def load_model_for_inference(
         resolved_base_model_name,
         trust_remote_code=True,
         device_map="auto",
-        torch_dtype=compute_dtype,
+        dtype=compute_dtype,
         quantization_config=quantization_config,
         local_files_only=local_only,
     )

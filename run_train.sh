@@ -51,6 +51,7 @@ usage() {
   --batch_size N             per_device_train_batch_size
   --grad_acc N               gradient_accumulation_steps
   --num_generations N        每个 prompt 的生成数量
+  --save_steps N             每隔多少 step 保存一次 checkpoint
   --init_adapter_path PATH   用已有 LoRA adapter 初始化训练
   --prompt_style STYLE       short | fewshot
 
@@ -82,6 +83,7 @@ PER_DEVICE_TRAIN_BATCH_SIZE="${PER_DEVICE_TRAIN_BATCH_SIZE:-}"
 GRADIENT_ACCUMULATION_STEPS="${GRADIENT_ACCUMULATION_STEPS:-}"
 NUM_GENERATIONS="${NUM_GENERATIONS:-}"
 MAX_COMPLETION_LENGTH="${MAX_COMPLETION_LENGTH:-}"
+SAVE_STEPS="${SAVE_STEPS:-}"
 INIT_ADAPTER_PATH="${INIT_ADAPTER_PATH:-}"
 PROMPT_STYLE="${PROMPT_STYLE:-}"
 
@@ -223,6 +225,15 @@ while [ $# -gt 0 ]; do
       NUM_GENERATIONS="$2"
       shift 2
       ;;
+    --save_steps)
+      if [ $# -lt 2 ]; then
+        echo "Error: --save_steps requires a value"
+        usage
+        exit 1
+      fi
+      SAVE_STEPS="$2"
+      shift 2
+      ;;
     --init_adapter_path)
       if [ $# -lt 2 ]; then
         echo "Error: --init_adapter_path requires a value"
@@ -262,6 +273,7 @@ PER_DEVICE_TRAIN_BATCH_SIZE="${PER_DEVICE_TRAIN_BATCH_SIZE:-8}"
 GRADIENT_ACCUMULATION_STEPS="${GRADIENT_ACCUMULATION_STEPS:-1}"
 NUM_GENERATIONS="${NUM_GENERATIONS:-4}"
 MAX_COMPLETION_LENGTH="${MAX_COMPLETION_LENGTH:-448}"
+SAVE_STEPS="${SAVE_STEPS:-25}"
 OUTPUT_DIR="${OUTPUT_DIR:-./grpo_qwen25_15b_gsm8k_lora_grpo_baseline}"
 
 if [ "${RUN_MODE}" != "foreground" ] && [ "${RUN_MODE}" != "background" ]; then
@@ -443,6 +455,7 @@ print_training_summary() {
   echo "Gradient accumulation steps: ${GRADIENT_ACCUMULATION_STEPS}"
   echo "Num generations: ${NUM_GENERATIONS}"
   echo "Max completion length: ${MAX_COMPLETION_LENGTH}"
+  echo "Save steps: ${SAVE_STEPS}"
   echo "Max steps: ${MAX_STEPS}"
   echo "HF_HUB_OFFLINE: ${HF_HUB_OFFLINE}"
   echo "TRANSFORMERS_OFFLINE: ${TRANSFORMERS_OFFLINE}"
@@ -491,7 +504,7 @@ CMD=(
   --beta 0.0
   --epsilon 0.2
   --logging_steps 1
-  --save_steps 25
+  --save_steps "${SAVE_STEPS}"
   --save_total_limit 1000
   --lora_r 16
   --lora_alpha 32
